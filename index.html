@@ -38,19 +38,19 @@
 
         // ⚠️ [필수] 본인의 Firebase 설정값을 여기에 정확히 넣어주세요!
         const firebaseConfig = {
-            apiKey: "AIzaSy...", 
-            authDomain: "ai-scheduler-agent-c837f.firebaseapp.com",
-            projectId: "ai-scheduler-agent-c837f",
-            storageBucket: "ai-scheduler-agent-c837f.appspot.com",
-            messagingSenderId: "226539339669",
-            appId: "1:226539339669:web:b14bc68d12202048ed809c"
-        };
-        
+          apiKey: "AIzaSyDklInjxfc0hAgjwhGCuPYgXGgdbynO1Tg",
+          authDomain: "aischedulerapp.firebaseapp.com",
+          projectId: "aischedulerapp",
+          storageBucket: "aischedulerapp.firebasestorage.app",
+          messagingSenderId: "421794306787",
+          appId: "1:421794306787:web:ab503c62dbaf0ca44d03d6",
+          measurementId: "G-H25MJXCPLF"
+        };        
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
         // ⚠️ [필수] 본인의 구글 Gemini API Key를 여기에 적어주세요!
-        const GEMINI_API_KEY = "AIzaSy..."; 
+        const GEMINI_API_KEY = "AIzaSyAuFWNywoOxMPpL40tW4gxXA3ssuJIO22Q"; 
 
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 

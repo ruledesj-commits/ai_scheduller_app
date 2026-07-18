@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎙️ AI 음성 스케줄러 에이전트</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; background-color: #f5f5f7; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { max-width: 450px; width: 100%; background: white; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); box-sizing: border-box; }
+        h2 { text-align: center; color: #1d1d1f; margin-top: 0; font-size: 22px; }
+        .input-group { position: relative; margin-bottom: 20px; }
+        input { width: 100%; padding: 16px; padding-right: 50px; border: 1.5px solid #e5e5e7; border-radius: 14px; box-sizing: border-box; font-size: 16px; outline: none; transition: all 0.2s; }
+        input:focus { border-color: #0071e3; box-shadow: 0 0 0 4px rgba(0,113,227,0.15); }
+        .mic-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 22px; cursor: pointer; padding: 8px; transition: transform 0.1s; }
+        .mic-btn:active { transform: translateY(-50%) scale(0.9); }
+        .mic-active { animation: pulse 1.2s infinite; font-bottom: 5px; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .submit-btn { width: 100%; padding: 16px; background: #0071e3; color: white; border: none; border-radius: 14px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .submit-btn:hover { background: #0077ed; }
+        #status { margin-top: 20px; font-size: 14px; color: #86868b; font-weight: 500; text-align: center; line-height: 1.6; min-height: 44px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🎙️ AI 음성 스케줄러 비서</h2>
+        <div class="input-group">
+            <input type="text" id="rawText" placeholder="말하거나 키보드로 입력하세요...">
+            <button class="mic-btn" id="micBtn" onclick="toggleSpeech()">🎤</button>
+        </div>
+        <button class="submit-btn" onclick="analyzeAndSave()">일정 분석 및 저장</button>
+        <div id="status">버튼을 누르고 일정을 말씀해보세요!</div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { GoogleGenAI } from "https://cdn.jsdelivr.net/npm/@google/genai/+esm";
+
+        // ⚠️ [필수] 본인의 Firebase 설정값을 여기에 정확히 넣어주세요!
+        const firebaseConfig = {
+            apiKey: "AIzaSy...", 
+            authDomain: "ai-scheduler-agent-c837f.firebaseapp.com",
+            projectId: "ai-scheduler-agent-c837f",
+            storageBucket: "ai-scheduler-agent-c837f.appspot.com",
+            messagingSenderId: "226539339669",
+            appId: "1:226539339669:web:b14bc68d12202048ed809c"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // ⚠️ [필수] 본인의 구글 Gemini API Key를 여기에 적어주세요!
+        const GEMINI_API_KEY = "AIzaSy..."; 
+
+        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+        // 웹 표준 음성 인식(STT) 설정
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        let isListening = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false; // 한 문장씩 끊어서 인식
+            recognition.lang = 'ko-KR';     // 한국어 설정
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                isListening = true;
+                document.getElementById('micBtn').classList.add('mic-active');
+                document.getElementById('status').innerHTML = "<span style='color:#ff3b30'>🔴 음성을 듣고 있습니다... 말씀하세요.</span>";
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                document.getElementById('micBtn').classList.remove('mic-active');
+            };
+
+            recognition.onresult = (event) => {
+                const speechToText = event.results[0][0].transcript;
+                document.getElementById('rawText').value = speechToText;
+                document.getElementById('status').innerText = "음성 인식 완료! [일정 분석 및 저장]을 누르세요.";
+            };
+
+            recognition.onerror = (event) => {
+                document.getElementById('status').innerHTML = `<span style="color:red">⚠️ 음성 인식 에러: ${event.error}</span>`;
+            };
+        }
+
+        window.toggleSpeech = function() {
+            if (!SpeechRecognition) {
+                return alert("현재 브라우저 혹은 기기가 음성 인식을 지원하지 않습니다. (크롬이나 사파리를 권장합니다)");
+            }
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        };
+
+        window.analyzeAndSave = async function() {
+            const text = document.getElementById('rawText').value;
+            const statusEl = document.getElementById('status');
+            if(!text) return alert('내용을 입력하거나 말씀해 주세요!');
+
+            statusEl.innerHTML = "⏳ Gemini AI가 일정을 세밀하게 분석 중입니다...";
+
+            try {
+                // 최신 표준 모델 규격 요청
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash', 
+                    contents: `다음 문장에서 'title'(일정제목), 'start_time'(시작시간, YYYY-MM-DDTHH:mm:ss 형식), 'location'(장소, 없으면 빈칸)를 찾아내서 오직 순수한 JSON 객체 텍스트 형태로만 응답해줘. 절대로 Markdown 표기(\`\`\`) 쓰지마. 문장: "${text}"`,
+                });
+                
+                let aiResultText = response.text.trim();
+                if (aiResultText.includes("```")) {
+                    aiResultText = aiResultText.replace(/```json|```/g, "").trim();
+                }
+
+                const parsed = JSON.parse(aiResultText);
+                statusEl.innerHTML = "🚀 분석 완료!<br>파이어베이스 창고에 저장 중...";
+
+                // 파이어베이스 업로드
+                await addDoc(collection(db, 'schedules'), {
+                    title: parsed.title || '제목 없음',
+                    start_time: parsed.start_time || '',
+                    location: parsed.location || '',
+                    memo: text,
+                    createdAt: new Date().toISOString()
+                });
+
+                statusEl.innerHTML = "<span style='color:#34c759'>🎉 성공적으로 저장되었습니다!<br>이제 구글 캘린더 연동 단계로 이동합니다.</span>";
+                document.getElementById('rawText').value = "";
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:red">⚠️ 시스템 연동 에러 발생:<br>${e.message}</span>`;
+                console.error(e);
+            }
+        }
+    </script>
+</body>
+</html>
